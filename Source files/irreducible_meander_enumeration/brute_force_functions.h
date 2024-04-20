@@ -10,15 +10,13 @@
 This file contains functions to perform a complete enumeration of irreducible meanders.
 The algorithm is straightforward, its description can be found in the file submeander.h.
 
-The implementation of the algorithm is as follows. The brute_force function distributes
+The implementation of the algorithm is as follows. The `brute_force` function distributes
 the work among the threads in such a way as to minimise the maximum running time among
-all the threads (to approximate the running time, we use the estimate obtained from
-computations on meanders of complexity 30). Then, each thread executes the function
-brute_forse_several_steps: which sequentially enumerates all irreducible meanders with
-a given permutation start. For each permutation start, depth-first search is used to
-enumerate all meanders, and the brute_forse_one_step function is used for each traversal.
-
-The number of threads used is a constant to be set.
+all the threads (to approximate the running time, we use the estimate obtained from prior
+computations involving meanders of complexity 30). Each thread executes the function
+`brute_forse_several_steps` that sequentially enumerates all almost irreducible meanders 
+starting from a given permutation. For each step of the enumeration, the 
+`brute_force_one_step` function performs a depth-first search.
 */
 
 

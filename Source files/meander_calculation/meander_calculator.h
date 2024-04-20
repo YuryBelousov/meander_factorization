@@ -7,7 +7,7 @@
 
 /*
 This file contains the class for calculating the numbers of different classes of meanders 
-(except for the irreducible ones, for which the files submeander.h and brute_force_functions.h
+(except for the irreducible ones, for which the files `submeander.h` and `brute_force_functions.h`
 are used). The calculations naively follow the formulas given in the corresponding article.
 */
 

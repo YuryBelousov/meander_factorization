@@ -8,10 +8,10 @@
 
 /*
 This file contains the class needed to work with two-dimensional partitions.
-The main function is get_all_two_dim_partition(n, k) which returns a vector of all partitions of (n, k).
+The main function is `get_all_two_dim_partition(n, k)` which returns a vector of all partitions of (n, k).
 
 
-				ALGORITHM DESCRIPTION
+			ALGORITHM DESCRIPTION
 First, note that we want to find all partitions of the pair (n, k), i.e., all sets {(a_1, b_1), ..., (a_q, b_q)} 
 with the following properties:
 1) sum a_i = n;
@@ -24,7 +24,7 @@ is not empty (i.e., there are partitions of (n-c, k-d) where every element is gr
 where this set is empty is when c == 0 and n != 0. 
 
 To speed up the computation within the algorithm work, we encode a pair of integers into a single number 
-(see integer_encoder.h).
+(see `integer_encoder.h`).
 */
 
 using namespace int_encoder;
