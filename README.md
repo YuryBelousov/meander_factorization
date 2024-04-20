@@ -8,7 +8,7 @@ The code herein is developed for the article "Prime Factorisation of Meanders" a
 The toolkit utilizes the Boost C++ Libraries, specifically the `boost/multiprecision` component, to handle large numbers required in calculations. Users will need to ensure that the Boost libraries are properly installed and configured in their development environment.
 
 ## Structure and Examples
-The main examples of how to utilize this toolkit can be found in `source.cpp`. This file includes:
+The main examples of how to utilize this toolkit can be found in `main.cpp`. This file includes:
 - An example of calculating irreducible meander numbers.
 - An example of computing numbers for iterated snakes.
 
