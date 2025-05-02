@@ -11,5 +11,6 @@ The toolkit utilizes the Boost C++ Libraries, specifically the `boost/multipreci
 The main examples of how to utilize this toolkit can be found in `main.cpp`. This file includes:
 - An example of calculating irreducible meander numbers.
 - An example of computing numbers for iterated snakes.
+- An example of computing numbers of singular meanders.
 
 Both examples also present the output of these calculations.
