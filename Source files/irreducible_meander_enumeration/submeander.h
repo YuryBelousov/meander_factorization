@@ -255,6 +255,54 @@ public:
 		return length;
 	}
 
+	void make_tex_print(ostream& out, double scale = 3, bool draw_circle = true) const noexcept {
+		double right_border = 1;
+		int max_h_up = 0,
+			max_h_bottom = 0;
+		//Find y-coordinate of highest and lowest arcs
+		for (int i = 0; i < code_size - 1; ++i) {
+			if (i % 2 == 1)
+				max_h_up = max(max_h_up, abs(code[i + 1] - code[i]));
+			else
+				max_h_bottom = max(max_h_bottom, abs(code[i + 1] - code[i]));
+		}
+		double
+			curvature = 12.56637,
+			h = right_border / (double)(code_size + 1),
+			circle_center = right_border / 2.,
+			line_x_start = 0,
+			line_x_end = right_border,
+			circle_radius = (line_x_end - line_x_start) / 2.,
+			m_y_start = h * (max_h_up + 2.) / 3,
+			m_y_end = (code_size % 2 == 0) ? h * (max_h_up + 2) / 3. : -h * (max_h_bottom + 2) / 3.,
+			m_x_start = (draw_circle) ? -std::sqrt(circle_radius * circle_radius - m_y_start * m_y_start) + circle_center : line_x_start,
+			m_x_end = (draw_circle) ? std::sqrt(circle_radius * circle_radius - m_y_end * m_y_end) + circle_center : line_x_end;
+		out << "\\begin{tikzpicture}[scale = " << scale << "]\n";
+		//Draw the line
+		out << "\\draw[thick] (" << line_x_start << ", 0) to (" << line_x_end << ", 0);\n";
+		//Draw the meander
+		out << "\\draw[ultra thick] (" << m_x_start << ", " << m_y_start << ")";
+		int angle = 90;
+		for (int i = 0; i < code_size; ++i) {
+			out << " to[out = " << ((i == 0) ? 0 : angle) << ", in = " << angle
+				<< ", distance = " << h * abs(code[i] - ((i == 0) ? -1 : code[i - 1])) * curvature << "] ("
+				<< h * (code[i] + 1) << ", 0)\n";
+			angle *= -1;
+		}
+		out << "to[out = " << angle << ", in = 180, distance = " <<
+			h * abs(code_size - code[code_size - 1]) * curvature << "] (" <<
+			m_x_end << ", " << m_y_end << ");\n";
+		if (draw_circle) {
+			double point_radius = sqrt(3. / scale) / 60.;
+			out << "\\draw[help lines] (" << circle_center << ", 0) circle (" << circle_radius << ");\n";
+			out << "\\draw[fill] (" << m_x_start << ", " << m_y_start << ") circle (" << (point_radius) << ");\n";
+			out << "\\draw[fill] (" << m_x_end << ", " << m_y_end << ") circle (" << (point_radius) << ");\n";
+			out << "\\draw[fill] (" << line_x_start << ", " << 0 << ") circle (" << (point_radius) << ");\n";
+			out << "\\draw[fill] (" << line_x_end << ", " << 0 << ") circle (" << (point_radius) << ");\n";
+		}
+		out << "\\end{tikzpicture}\n";
+	}
+
 	//Comparison operator required to store submeanders in set.
 	friend bool operator<(const submeander& m1, const submeander& m2) {
 		if (m1.code_size != m2.code_size)
