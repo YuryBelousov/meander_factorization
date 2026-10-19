@@ -3,12 +3,14 @@
 #include <array>
 #include <algorithm>
 #include <optional>
+#include <istream>
+#include <stdexcept>
 
-#include "meander_calculation/binomial_coefficient_calculator.hpp"
+#include "binomial_coefficient_calculator.hpp"
 
 /*
 This file defines a class for calculating various classes of meanders (excluding irreducible meanders,
-which are handled separately in submeander.h). The calculations are performed using truncated generating
+which are handled separately in enumerate_irreducible_meanders.hpp). The calculations use truncated generating
 functions. For mathematical details, see the corresponding paper.
 
 Template parameter:
@@ -55,7 +57,7 @@ private:
 
 private:
 	// Ensures that numbers[n][k] is accessible. Expands the container if necessary.
-	void ensure_capacity(container_for_opt_numbers& numbers, size_t n, size_t k, bool is_jagged) noexcept {
+	void ensure_capacity(container_for_opt_numbers& numbers, size_t n, size_t k, bool is_jagged) {
 		if (is_jagged) {
 			if (numbers.size() <= n)
 				numbers.resize(1 + std::max(n, 2 * numbers.size()));
@@ -77,7 +79,7 @@ private:
 	}
 
 	// Calculates sum_{i,j} A[i][j]*A[n-i][k-j]. Assumes all numbers up to (n, k) have been precomputed.
-	number_type quadric_term(const container_for_opt_numbers& numbers, size_t n, size_t k) const noexcept {
+	number_type quadric_term(const container_for_opt_numbers& numbers, size_t n, size_t k) const {
 		number_type sum(0);
 		for (size_t i = 0; i <= n; ++i) {
 			const size_t j_min = (i < 2 ? 2 - i : 0);	// numbers[i][j], where i+j<2 are always 0.
@@ -89,7 +91,7 @@ private:
 	}
 
 	// Calculates sum_{i1+i2+i3=n, j1+j2+j3=k} A[i1][j1]*A[i2][j2]*A[i3][j3]. Assumes all numbers up to (n, k) have been precomputed.
-	number_type cubic_term(const container_for_opt_numbers& numbers, size_t n, size_t k) const noexcept {
+	number_type cubic_term(const container_for_opt_numbers& numbers, size_t n, size_t k) const {
 		number_type sum = 0;
 		for (size_t i1 = 0; i1 <= n; ++i1) {
 			const size_t j1_min = (i1 < 2 ? 2 - i1 : 0);	// numbers[i1][j1], where i1+j1<2 are always 0.
@@ -107,7 +109,7 @@ private:
 
 	// Calculates the truncated product of two bivariate polynomials A(x, t) and B(x, t).
 	// Assumes A and B have the same truncation.
-	numbers_2D_container product(const numbers_2D_container& A, const numbers_2D_container& B) const noexcept {
+	numbers_2D_container product(const numbers_2D_container& A, const numbers_2D_container& B) const {
 		numbers_2D_container result(A.size());
 		for (size_t i = 0; i < A.size(); ++i)
 			result[i] = numbers_1D_container(A[i].size(), 0);
@@ -122,10 +124,10 @@ private:
 	}
 
 	// Computes truncated powers of a bivariate polynomial A(x, t) up to max_power.
-	numbers_3D_container get_powers(const numbers_2D_container& A, size_t max_power) const noexcept {
+	numbers_3D_container get_powers(const numbers_2D_container& A, size_t max_power) const {
 		numbers_3D_container A_powers(1 + max_power);
 		A_powers[0] = numbers_2D_container(1, numbers_1D_container(1, 1));
-		A_powers[1] = A;
+		if (max_power > 0) A_powers[1] = A;
 		for (size_t power = 2; power <= max_power; ++power)
 			A_powers[power] = product(A_powers[power - 1], A);
 		return A_powers;
@@ -134,7 +136,7 @@ private:
 	// Calculates a truncated version of A(x + B1(x, t), t + B2(x, t)), 
 	// where B1(x, t) is the odd part and B2(x, t) is the even part of B(x, t).
 	// Assumes A and B have the same truncation.
-	numbers_2D_container compose(const numbers_2D_container& A, const numbers_2D_container& B) const noexcept {
+	numbers_2D_container compose(const numbers_2D_container& A, const numbers_2D_container& B) const {
 		numbers_2D_container B1(A.size());
 		numbers_2D_container B2(A.size());
 
@@ -151,8 +153,8 @@ private:
 		if (A.size() >= 2) B1[1][0] = 1;		// x + B1(x,t).
 		if (A[0].size() >= 2) B2[0][1] = 1;		// t + B2(x,t).
 
-		numbers_3D_container B1_powers = get_powers(B1, A.size());
-		numbers_3D_container B2_powers = get_powers(B2, A[0].size());
+		numbers_3D_container B1_powers = get_powers(B1, A.size() - 1);
+		numbers_3D_container B2_powers = get_powers(B2, A[0].size() - 1);
 
 		numbers_2D_container result(A.size());
 		for (size_t i = 0; i < A.size(); ++i)
@@ -162,9 +164,11 @@ private:
 			for (size_t j = 0; j < A[i].size(); ++j)
 				if (number_type c = A[i][j]; c != 0) {
 					// Add contribution of A[i][j] * (B1^i * B2^j) to the result.
-					numbers_2D_container term = (i == 0 ? B2_powers[j] : (j == 0 ? B1_powers[i] : product(B1_powers[i], B2_powers[j])));
-					for (size_t x = 0; x < A.size(); ++x)
-						for (size_t t = 0; t < A[x].size(); ++t)
+					numbers_2D_container mixed_power;
+					if (i > 0 && j > 0) mixed_power = product(B1_powers[i], B2_powers[j]);
+					const auto& term = i == 0 ? B2_powers[j] : (j == 0 ? B1_powers[i] : mixed_power);
+					for (size_t x = 0; x < term.size(); ++x)
+						for (size_t t = 0; t < term[x].size(); ++t)
 							result[x][t] += c * term[x][t];
 				}
 		}
@@ -172,7 +176,7 @@ private:
 	}
 
 	// Calculates the number of iterated snakes up to a given order (n, k).
-	void calculate_iterated_snakes_up_to(size_t n, size_t k, bool is_jagged) noexcept {
+	void calculate_iterated_snakes_up_to(size_t n, size_t k, bool is_jagged) {
 		// Solves the third-degree recurrence relation for the iterated snake generating function.
 		ensure_capacity(iterated_snakes, n, k, is_jagged);
 		for (size_t i = 0; i <= n; ++i) {
@@ -181,11 +185,13 @@ private:
 			const size_t j_max = (is_jagged ? k + (n - i) / 2 : k);
 			for (size_t j = j_min; j <= j_max; ++j) {
 				if (iterated_snakes[i][j].has_value()) {
-					prev_cubic = cubic_term(iterated_snakes, i, j);
+					// Only the last cached coefficient is needed before extending the row.
+					if (j < j_max && !iterated_snakes[i][j + 1].has_value())
+						prev_cubic = cubic_term(iterated_snakes, i, j);
 					continue;
 				}
 
-				// 1) Cubic_term part: IS(x,t)^3 * (1 + t)
+				// 1) Cubic term: IS(x,t)^3 * (1 - t).
 				number_type S3_0 = cubic_term(iterated_snakes, i, j),
 					S3_1 = (j == 0 ? 0 : prev_cubic),
 					S2 = 0, S1 = 0;
@@ -196,7 +202,7 @@ private:
 				static constexpr std::array<std::array<int, 3>, 5> B{ { {0,0,2}, {0,1,-8}, {0,2,7}, {1,0,-5}, {1,1,5} } };
 				for (const auto& monomial : B) {
 					auto [deg_x, deg_t, coef] = monomial;
-					if (i >= deg_x && j >= deg_t)
+					if (i >= size_t(deg_x) && j >= size_t(deg_t))
 						S2 += coef * quadric_term(iterated_snakes, i - deg_x, j - deg_t);
 				}
 
@@ -205,27 +211,16 @@ private:
 				{ {0,1, -3}, {0,2, -5}, {0,3, 11}, {1,0,  1}, {1,1,-16}, {1,2, 18}, {2,0, -7}, {2,1,  7} } };
 				for (const auto& monomial : C) {
 					auto [deg_x, deg_t, coef] = monomial;
-					if (i < deg_x || j < deg_t || (i == deg_x && j == deg_t)) continue;
+					if (i < size_t(deg_x) || j < size_t(deg_t) || (i == size_t(deg_x) && j == size_t(deg_t))) continue;
 					S1 += coef * iterated_snakes[i - deg_x][j - deg_t].value();
 				}
 
 				// 4) Inhomogeneity: D_{n,k}
-				constexpr int shift = 10;
-				number_type S0(0);
-				switch ((i << shift) | j) {
-				case (0 << shift) | 2:	S0 = -1;	break;
-				case (0 << shift) | 3:	S0 = 2;		break;
-				case (0 << shift) | 4:	S0 = 5;		break;
-				case (1 << shift) | 1:	S0 = -4;	break;
-				case (1 << shift) | 2:	S0 = -3;	break;
-				case (1 << shift) | 3:	S0 = 13;	break;
-				case (2 << shift) | 0:	S0 = -1;	break;
-				case (2 << shift) | 1:	S0 = -8;	break;
-				case (2 << shift) | 2:	S0 = 11;	break;
-				case (3 << shift) | 0:	S0 = -3;	break;
-				case (3 << shift) | 1:	S0 = 3;		break;
-				default:							break;
-				}
+				static constexpr int D[4][5] = {
+					{0, 0, -1, 2, 5}, {0, -4, -3, 13, 0},
+					{-1, -8, 11, 0, 0}, {-3, 3, 0, 0, 0}
+				};
+				const number_type S0 = i < 4 && j < 5 ? D[i][j] : 0;
 
 				// 5) Solve the master recurrence equation: 
 				iterated_snakes[i][j] = S3_0 - S3_1 - S2 - S1 - S0;
@@ -234,7 +229,7 @@ private:
 	}
 
 	// Calculates the number of iterated irreducible meanders up to given complexity.
-	void calculate_iterated_irreducibe_meanders_up_to(size_t n, size_t k) noexcept {
+	void calculate_iterated_irreducibe_meanders_up_to(size_t n, size_t k) {
 		// For the calculation it uses an equation for generating function: II(x,t) = A(x + II1(x,t), t + II2(x,t)).
 		// Where A(x,t) is a generating function for the irreducible meanders.
 		ensure_capacity(iterated_irreducible_meanders, n, k, true);
@@ -264,10 +259,12 @@ private:
 	}
 
 public:
-	meander_calculator() noexcept : iterated_snakes{ {0,0}, {0,4} }, iterated_irreducible_meanders{ {0,0}, {0,0} } {};
+	meander_calculator() : iterated_irreducible_meanders{ {0,0}, {0,0} }, iterated_snakes{ {0,0}, {0,4} } {};
 
 	// Calculates the number of meanders up to given order.
-	void calculate_all(size_t n, size_t k) noexcept {
+	void calculate_all(size_t n, size_t k) {
+		ensure_capacity(meander_numbers, n, k, true);
+		if (meander_numbers[n][k].has_value()) return;
 		// For the calculation it uses an truncated generating functions.
 		calculate_iterated_irreducibe_meanders_up_to(n, k);
 		calculate_iterated_snakes_up_to(n, k, true);
@@ -280,12 +277,14 @@ public:
 			iter_snakes_started[i].resize(1 + k + (n - i) / 2, 0);
 			iter_snakes_started_conv[i].resize(1 + k + (n - i) / 2, 0);
 			iter_irr_started[i].resize(1 + k + (n - i) / 2, 0);
-			iter_irr_started_conv[i].resize(1 + k + (n - i) / 2, 0);
 			for (size_t j = 0; j <= k + (n - i) / 2; ++j) {
 				iter_snakes_started[i][j] = iter_snakes_started_conv[i][j] = get_iterated_snakes_number(i, j);
-				iter_irr_started[i][j] = iter_irr_started_conv[i][j] = get_iterated_irreducible_meanders_number(i, j);
+				iter_irr_started[i][j] = get_iterated_irreducible_meanders_number(i, j);
 			}
 		}
+
+		// Keep the irreducible branch consistent before checking convergence.
+		iter_irr_started_conv = compose(iter_irr_started, iter_snakes_started_conv);
 
 		// Perform convolution until convergence.
 		while (true) {
@@ -296,9 +295,7 @@ public:
 		}
 
 		// Save result.
-		meander_numbers.resize(iter_snakes_started.size());
 		for (size_t i = 0; i < iter_snakes_started.size(); ++i) {
-			meander_numbers[i].resize(iter_snakes_started[i].size());
 			for (size_t j = 0; j < iter_snakes_started[i].size(); ++j)
 				if (i + j == 1) 
 					meander_numbers[i][j] = 1;
@@ -307,32 +304,32 @@ public:
 		}
 	}
 
-	number_type get_meander_number(size_t n, size_t k) noexcept {
+	number_type get_meander_number(size_t n, size_t k) {
 		ensure_capacity(meander_numbers, n, k, false);
 		if (!meander_numbers[n][k].has_value())
 			calculate_all(n, k);
 		return meander_numbers[n][k].value();
 	}
 
-	number_type get_snakes_number(size_t n, size_t k) noexcept {
+	number_type get_snakes_number(size_t n, size_t k) {
 		if (n + k < 2) return 0;
 		return (n % 2 == 0 ? 1 : 2) * binom_calculator.get_binomial_coef(n + k, k);
 	}
 
-	number_type get_iterated_snakes_number(size_t n, size_t k) noexcept {
+	number_type get_iterated_snakes_number(size_t n, size_t k) {
 		ensure_capacity(iterated_snakes, n, k, false);
 		if (!iterated_snakes[n][k].has_value())
 			calculate_iterated_snakes_up_to(n, k, false);
 		return iterated_snakes[n][k].value();
 	}
 
-	number_type get_irreducible_meanders_number(size_t n, size_t k) const noexcept {
-		if (irreducible_meanders.size() <= n || irreducible_meanders[0].size() <= k)
+	number_type get_irreducible_meanders_number(size_t n, size_t k) const {
+		if (irreducible_meanders.size() <= n || irreducible_meanders[n].size() <= k)
 			return 0;
 		return irreducible_meanders[n][k].value_or(0);
 	}
 
-	number_type get_iterated_irreducible_meanders_number(size_t n, size_t k) noexcept {
+	number_type get_iterated_irreducible_meanders_number(size_t n, size_t k) {
 		ensure_capacity(iterated_irreducible_meanders, n, k, false);
 		if (!iterated_irreducible_meanders[n][k].has_value())
 			calculate_iterated_irreducibe_meanders_up_to(n, k);
@@ -341,15 +338,21 @@ public:
 
 	// Read number of irreducible meanders from a given file. Note: it starts reading from n = 1 and k = 3.
 	void read_irreducible_meander_numbers(std::istream& file_with_meanders) {
-		int max_n = 0, max_k = 0;
-		file_with_meanders >> max_n >> max_k;
-		ensure_capacity(irreducible_meanders, max_n + 1, max_k + 1, false);
-		for (int n = 1; n <= max_n; ++n)
-			for (int k = 3; k <= max_k; ++k) {
-				number_type irr_meand_num = 0;
-				file_with_meanders >> irr_meand_num;
-				if (irr_meand_num != 0)
-					irreducible_meanders[n][k] = irr_meand_num;
+		int n_limit = 0, k_limit = 0;
+		if (!(file_with_meanders >> n_limit >> k_limit) || n_limit < 0 || k_limit < 0)
+			throw std::invalid_argument("Invalid irreducible meander table header");
+		container_for_opt_numbers numbers(size_t(n_limit) + 1,
+			std::vector<std::optional<number_type>>(size_t(k_limit) + 1));
+		for (size_t n = 1; n < numbers.size(); ++n)
+			for (size_t k = 3; k < numbers[n].size(); ++k) {
+				number_type value = 0;
+				if (!(file_with_meanders >> value))
+					throw std::invalid_argument("Incomplete irreducible meander table");
+				numbers[n][k] = std::move(value);
 			}
+		// Replace only after a complete read; previously derived counts depend on this table.
+		irreducible_meanders = std::move(numbers);
+		iterated_irreducible_meanders.clear();
+		meander_numbers.clear();
 	}
 };

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <algorithm>
 #include <ostream>
+#include <cstring>
 
 /*
 This file contains a class which is used to enumerate irreducible meanders 
@@ -47,7 +48,7 @@ private:
 	int edge_num;								//Total number of different edges
 	int vert_num;								//Total number of verticies with non zero incidence index
 
-	mutable int avaliable_points[max_n / 2 + 1];	//The array stores labels of vertecies that we can visit in the next step
+	mutable int avaliable_points[(max_n + 1) / 2 + 1];	//Available labels, followed by meanless_value.
 
 private:
 	void remove_edge(int from, int to) noexcept {
@@ -73,7 +74,7 @@ private:
 public:
 	//Create an empty submeander.
 	submeander() noexcept
-		: n(0), next_point_odd(false), tail_index(meanless_value), code_size(0), edge_num(1), vert_num(2) {
+		: code_size(0), tail_index(meanless_value), n(0), next_point_odd(false), edge_num(1), vert_num(2) {
 		for (int i = 0; i < max_n; ++i) {	//Create upper and lower half-plane
 			not_visited[i] = true;
 			lower_areas[i] = 1;
@@ -131,7 +132,7 @@ public:
 	//Delete the last visited point from the submeander. 
 	//Note: to use it to enumerate all meanders, you should uncomment additional check.
 	void step_back() noexcept {
-		// Note: to speed up calculations, this function only works when code_size > 2.
+		// Note: to speed up calculations, this function requires code_size >= 2.
 		/*if (code_size < 2)
 			tail_index = -1;
 		else*/
@@ -163,7 +164,7 @@ public:
 
 	//Find all points available for the go_through function.
 	//Note: to use it to enumerate all meanders, you should uncomment additional check.
-	const int* const get_avaliable_points(/*bool irreducibility = true*/) const noexcept {
+	const int* get_avaliable_points(/*bool irreducibility = true*/) const noexcept {
 		if (vert_num != edge_num + 1) {
 			avaliable_points[0] = meanless_value;
 			return avaliable_points;
@@ -216,7 +217,7 @@ public:
 	//Check that it is a meander (i.e. all the first points have been visited and 
 	// the curve can be continued to the boundary of the disc without adding new intersections).
 	bool finished() const noexcept {
-		if (code_size < n)
+		if (code_size == 0 || code_size < n)
 			return false;
 		if (next_point_odd)
 			return (lower_areas[tail_index] == 1);
@@ -255,16 +256,16 @@ public:
 		return length;
 	}
 
-	void make_tex_print(ostream& out, double scale = 3, bool draw_circle = true) const noexcept {
+	void make_tex_print(std::ostream& out, double scale = 3, bool draw_circle = true) const {
 		double right_border = 1;
 		int max_h_up = 0,
 			max_h_bottom = 0;
 		//Find y-coordinate of highest and lowest arcs
 		for (int i = 0; i < code_size - 1; ++i) {
 			if (i % 2 == 1)
-				max_h_up = max(max_h_up, abs(code[i + 1] - code[i]));
+				max_h_up = std::max(max_h_up, abs(code[i + 1] - code[i]));
 			else
-				max_h_bottom = max(max_h_bottom, abs(code[i + 1] - code[i]));
+				max_h_bottom = std::max(max_h_bottom, abs(code[i + 1] - code[i]));
 		}
 		double
 			curvature = 12.56637,
@@ -307,15 +308,15 @@ public:
 	friend bool operator<(const submeander& m1, const submeander& m2) {
 		if (m1.code_size != m2.code_size)
 			return m1.code_size < m2.code_size;
-		for (size_t i = 0; i < m1.code_size; ++i)
+		for (int i = 0; i < m1.code_size; ++i)
 			if (m1.code[i] != m2.code[i])
 				return m1.code[i] < m2.code[i];
 		return false;
 	}
 
 	//Print submeander permutation in a stream.
-	friend std::ostream& operator<<(std::ostream& out, const submeander& m) noexcept {
-		for (size_t i = 0; i < std::min(m.code_size, max_n); ++i)
+	friend std::ostream& operator<<(std::ostream& out, const submeander& m) {
+		for (int i = 0; i < std::min(m.code_size, max_n); ++i)
 			out << m.code[i] + 1 << " ";
 		return out;
 	}
